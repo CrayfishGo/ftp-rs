@@ -1,3 +1,7 @@
+use std::fmt;
+use std::fmt::Formatter;
+use std::path::Display;
+
 #[derive(Debug)]
 pub enum Command {
     ABOR,
@@ -130,5 +134,11 @@ impl Command {
             Command::CCC => "CCC",
             _ => { "Unknown" }
         }
+    }
+}
+
+impl fmt::Display for Command {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.cmd_name())
     }
 }

@@ -5,12 +5,12 @@
 //! Here is a basic usage example:
 //!
 //! ```rust,no_run
-//! use async_ftp::FtpClient;
+//! use ftp_rs::FtpClient;
 //! async {
-//!   let mut ftp_stream = FtpClient::connect("172.25.82.139:21").await.unwrap_or_else(|err|
+//!   let mut ftp_client = FtpClient::connect("172.25.82.139:21").await.unwrap_or_else(|err|
 //!       panic!("{}", err)
 //!   );
-//!   let _ = ftp_stream.quit();
+//!   let _ = ftp_client.quit();
 //! };
 //! ```
 //!
@@ -30,11 +30,11 @@
 //! ```rust,no_run
 //! use std::convert::TryFrom;
 //! use std::path::Path;
-//! use async_ftp::FtpClient;
+//! use ftp_rs::FtpClient;
 //! use tokio_rustls::rustls::{ClientConfig, RootCertStore, ServerName};
 //!
 //! async {
-//!   let ftp_stream = FtpClient::connect("172.25.82.139:21").await.unwrap();
+//!   let ftp_client = FtpClient::connect("172.25.82.139:21").await.unwrap();
 //!   
 //!   let mut root_store = RootCertStore::empty();
 //!   // root_store.add_pem_file(...);
@@ -42,24 +42,24 @@
 //!   let domain = ServerName::try_from("www.cert-domain.com").expect("invalid DNS name");
 //!
 //!   // Switch to the secure mode
-//!   let mut ftp_stream = ftp_stream.into_secure(conf, domain).await.unwrap();
-//!   ftp_stream.login("anonymous", "anonymous").await.unwrap();
+//!   let mut ftp_client = ftp_client.into_secure(conf, domain).await.unwrap();
+//!   ftp_client.login("anonymous", "anonymous").await.unwrap();
 //!   // Do other secret stuff
 //!   // Switch back to the insecure mode (if required)
-//!   let mut ftp_stream = ftp_stream.into_insecure().await.unwrap();
+//!   let mut ftp_client = ftp_client.into_insecure().await.unwrap();
 //!   // Do all public stuff
-//!   let _ = ftp_stream.quit().await;
+//!   let _ = ftp_client.quit().await;
 //! };
 //! ```
 //!
 
-mod data_stream;
+mod connection;
 mod ftp_client;
 pub mod ftp_reply;
 pub mod types;
 mod cmd;
 
-pub use self::data_stream::DataStream;
+pub use self::connection::Connection;
 pub use self::ftp_client::FtpClient;
 pub use self::types::FtpError;
 
