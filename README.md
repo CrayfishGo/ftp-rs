@@ -22,17 +22,17 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     let mut ftp_client = FtpClient::connect("172.25.82.139:21").await?;
     let _ = ftp_client.login("username", "password").await?;
 
-    // Get the current directory that the client will be reading from and writing to.
-    println!("Current directory: {}", ftp_client.pwd().await?);
+    // Get the current Directory that the client will be reading from and writing to.
+    println!("Current Directory: {}", ftp_client.pwd().await?);
     
-    // Change into a new directory, relative to the one we are currently in.
+    // Change into a new Directory, relative to the one we are currently in.
     let _ = ftp_client.cwd("test_data").await?;
 
-    // Retrieve (GET) a file from the FTP server in the current working directory.
+    // Retrieve (GET) a File from the FTP server in the current working Directory.
     let remote_file = ftp_client.simple_retr("ftpext-charter.txt").await?;
-    println!("Read file with contents\n{}\n", str::from_utf8(&remote_file.into_inner()).await?);
+    println!("Read File with contents\n{}\n", str::from_utf8(&remote_file.into_inner()).await?);
 
-    // Store (PUT) a file from the client to the current working directory of the server.
+    // Store (PUT) a File from the client to the current working Directory of the server.
     let mut reader = Cursor::new("Hello from the Rust \"ftp\" crate!".as_bytes());
     let _ = ftp_client.put("greeting.txt", &mut reader).await?;
     println!("Successfully wrote greeting.txt");

@@ -12,18 +12,18 @@ fn test_ftp() {
         ftp_client.cwd("test_dir").await?;
         assert!(ftp_client.pwd().await?.ends_with("/test_dir"));
 
-        // store a file
+        // store a File
         let file_data = "test data\n";
         let mut reader = Cursor::new(file_data.as_bytes());
         ftp_client.put("test_file.txt", &mut reader).await?;
 
-        // retrieve file
+        // retrieve File
         ftp_client
             .simple_retr("test_file.txt")
             .await
             .map(|bytes| assert_eq!(bytes.into_inner(), file_data.as_bytes()))?;
 
-        // remove file
+        // remove File
         ftp_client.rm("test_file.txt").await?;
 
         // cleanup: go up, remove folder, and quit

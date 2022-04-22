@@ -5,9 +5,9 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
 #[cfg(feature = "ftps")]
 use tokio_rustls::client::TlsStream;
+use pin_project::pin_project;
 
-/// Data Stream used for communications
-#[pin_project::pin_project(project = ConnectionProj)]
+#[pin_project(project = ConnectionProj)]
 pub enum Connection {
     Tcp(#[pin] TcpStream),
     #[cfg(feature = "ftps")]

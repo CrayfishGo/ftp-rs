@@ -45,9 +45,6 @@ pub enum FileType {
     Local(u8),
 }
 
-/// `Line` contains a command code and the contents of a line of text read from the network.
-pub struct Line(pub u32, pub String);
-
 impl ToString for FormatControl {
     fn to_string(&self) -> String {
         match self {

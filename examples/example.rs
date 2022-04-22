@@ -1,28 +1,31 @@
-use ftp_rs::{FtpError, FtpClient};
+use ftp_rs::{FtpError, FtpClient, cmd};
 use std::io::Cursor;
 use std::str;
 
 async fn test_ftp(addr: &str, user: &str, pass: &str) -> Result<(), FtpError> {
-    let mut ftp_stream = FtpClient::connect((addr, 21)).await?;
-    ftp_stream.login(user, pass).await?;
-    println!("current dir: {}", ftp_stream.pwd().await?);
+    let mut ftp_client = FtpClient::connect((addr, 21)).await?;
+    ftp_client.login(user, pass).await?;
+    println!("current dir: {}", ftp_client.pwd().await?);
 
     // ftp_stream.make_directory("test_data").await?;
 
-    ftp_stream.cwd("test_data").await?;
+    ftp_client.cwd("test_data").await?;
 
-    // An easy way to retrieve a file
-    let cursor = ftp_stream.simple_retr("my_random_file.txt").await?;
+    let f = ftp_client.features(cmd::Command::REST).await?;
+    println!("features: {:?}", f);
+
+    // An easy way to retrieve a File
+    let cursor = ftp_client.simple_retr("my_random_file.txt").await?;
     let vec = cursor.into_inner();
     let text = str::from_utf8(&vec).unwrap();
     println!("got data: {}", text);
 
-    // Store a file
-    // let file_data = format!("Some awesome file data man!!");
+    // Store a File
+    // let file_data = format!("Some awesome File data man!!");
     // let mut reader = Cursor::new(file_data.into_bytes());
     // ftp_stream.put("my_random_file.txt", &mut reader).await?;
 
-    ftp_stream.logout().await?;
+    ftp_client.logout().await?;
     Ok(())
 }
 

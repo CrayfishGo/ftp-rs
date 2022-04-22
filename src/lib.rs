@@ -57,10 +57,38 @@ mod connection;
 mod ftp_client;
 pub mod ftp_reply;
 pub mod types;
-mod cmd;
+pub mod cmd;
 
 pub use self::connection::Connection;
 pub use self::ftp_client::FtpClient;
 pub use self::types::FtpError;
 
 pub const REPLY_CODE_LEN: usize = 3;
+
+pub const MODES: &'static str = "AEILNTCFRPSBC";
+
+pub trait StringExt {
+    fn substring(&self, start_index: usize, end_index: usize) -> &str;
+}
+
+impl StringExt for str {
+    fn substring(&self, start_index: usize, end_index: usize) -> &str {
+        if end_index <= start_index {
+            return "";
+        }
+
+        let mut indices = self.char_indices();
+
+        let obtain_index = |(index, _char)| index;
+        let str_len = self.len();
+
+        unsafe {
+            self.slice_unchecked(
+                indices.nth(start_index).map_or(str_len, &obtain_index),
+                indices
+                    .nth(end_index - start_index - 1)
+                    .map_or(str_len, &obtain_index),
+            )
+        }
+    }
+}
