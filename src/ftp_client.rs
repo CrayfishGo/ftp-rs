@@ -34,7 +34,7 @@ lazy_static::lazy_static! {
 }
 
 pub struct FtpClient {
-    stream: BufStream<Connection>,
+    stream: BufReader<Connection>,
     welcome_msg: Option<String>,
     _reply_code: u32,
     _reply_string: Option<String>,
@@ -47,7 +47,7 @@ pub struct FtpClient {
 impl FtpClient {
     pub fn new(stream: TcpStream) -> Self {
         FtpClient {
-            stream: BufStream::new(Connection::Tcp(stream)),
+            stream: BufReader::new(Connection::Tcp(stream)),
             #[cfg(feature = "ftps")]
             ssl_cfg: None,
             welcome_msg: None,
@@ -61,7 +61,7 @@ impl FtpClient {
     #[cfg(feature = "ftps")]
     pub fn new_tls_client(stream: TlsStream<TcpStream>) -> Self {
         FtpClient {
-            stream: BufStream::new(Connection::Ssl(stream)),
+            stream: BufReader::new(Connection::Ssl(stream)),
             ssl_cfg: None,
             welcome_msg: None,
             _reply_code: 0,
@@ -80,6 +80,8 @@ impl FtpClient {
             .map_err(FtpError::ConnectionError)?;
 
         let mut ftp_client = FtpClient::new(stream);
+        ftp_client.read_reply().await?;
+        ftp_client.get_reply_string();
         ftp_client.check_response(ftp_reply::READY).await?;
         ftp_client.welcome_msg = Some(ftp_client._reply_string.clone().unwrap());
         Ok(ftp_client)
@@ -176,9 +178,6 @@ impl FtpClient {
     /// Execute command which send data back in a separate stream
     async fn data_command(&mut self, cmd: &str) -> Result<Connection> {
         let addr = self.pasv().await?;
-        self.write_str(cmd).await?;
-        self.read_reply().await?;
-        self.get_reply_string()?;
         let stream = TcpStream::connect(addr)
             .await
             .map_err(FtpError::ConnectionError)?;
@@ -196,6 +195,7 @@ impl FtpClient {
             _ => {}
         };
 
+        self.write_str(cmd).await?;
         Ok(Connection::Tcp(stream))
     }
 
@@ -431,9 +431,9 @@ impl FtpClient {
     /// This method is a more complicated way to retrieve a File.
     /// The reader returned should be dropped.
     /// Also you will have to read the response to make sure it has the correct value.
-    pub async fn get(&mut self, file_name: &str) -> Result<BufStream<Connection>> {
+    pub async fn get(&mut self, file_name: &str) -> Result<BufReader<Connection>> {
         let retr_command = format!("RETR {}\r\n", file_name);
-        let data_stream = BufStream::new(self.data_command(&retr_command).await?);
+        let data_stream = BufReader::new(self.data_command(&retr_command).await?);
         self.check_response_in(&[ftp_reply::ABOUT_TO_SEND, ftp_reply::ALREADY_OPEN])
             .await?;
         Ok(data_stream)
@@ -486,16 +486,18 @@ impl FtpClient {
         let retr_command = format!("{} {}\r\n", cmd::Command::RETR.cmd_name(), filename);
 
         let data_stream = BufReader::new(self.data_command(&retr_command).await?);
+        self.read_reply().await?;
+        self.get_reply_string()?;
         self.check_response_in(&[ftp_reply::ABOUT_TO_SEND, ftp_reply::ALREADY_OPEN])
             .await?;
 
         let res = reader(data_stream).await?;
 
-        self.check_response_in(&[
-            ftp_reply::CLOSING_DATA_CONNECTION,
-            ftp_reply::REQUESTED_FILE_ACTION_OK,
-        ])
-        .await?;
+        // self.check_response_in(&[
+        //     ftp_reply::CLOSING_DATA_CONNECTION,
+        //     ftp_reply::REQUESTED_FILE_ACTION_OK,
+        // ])
+        // .await?;
 
         Ok(res)
     }
@@ -556,7 +558,7 @@ impl FtpClient {
 
     async fn put_file<R: AsyncRead + Unpin>(&mut self, filename: &str, r: &mut R) -> Result<()> {
         let stor_command = format!("{} {}\r\n", Command::STOR, filename);
-        let mut data_stream = BufStream::new(self.data_command(&stor_command).await?);
+        let mut data_stream = BufReader::new(self.data_command(&stor_command).await?);
         self.check_response_in(&[ftp_reply::ALREADY_OPEN, ftp_reply::ABOUT_TO_SEND])
             .await?;
         copy(r, &mut data_stream)
@@ -578,6 +580,7 @@ impl FtpClient {
     }
 
     async fn read_reply(&mut self) -> Result<()> {
+        self._reply_lines.clear();
         self._reply_string = None;
         let mut line = String::new();
         self.stream
