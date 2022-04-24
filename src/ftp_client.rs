@@ -5,21 +5,20 @@ use std::fmt::format;
 use std::net::SocketAddr;
 use std::string::String;
 
-use chrono::offset::TimeZone;
 use chrono::{DateTime, Utc};
+use chrono::offset::TimeZone;
 use regex::Regex;
 use tokio::io::{
-    copy, AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader,
-    BufStream, BufWriter,
+    AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufStream, copy,
 };
 use tokio::net::{TcpStream, ToSocketAddrs};
 #[cfg(feature = "ftps")]
 use tokio_rustls::{client::TlsStream, rustls::ClientConfig, rustls::ServerName, TlsConnector};
 
+use crate::{cmd, ftp_reply, MODES, REPLY_CODE_LEN, StringExt};
 use crate::cmd::Command;
 use crate::connection::Connection;
 use crate::types::{FileType, FtpError, Result};
-use crate::{cmd, ftp_reply, StringExt, MODES, REPLY_CODE_LEN};
 
 lazy_static::lazy_static! {
     // This regex extracts IP and Port details from PASV command response.
@@ -34,7 +33,7 @@ lazy_static::lazy_static! {
 }
 
 pub struct FtpClient {
-    stream: BufReader<Connection>,
+    stream: BufStream<Connection>,
     welcome_msg: Option<String>,
     _reply_code: u32,
     _reply_string: Option<String>,
@@ -47,7 +46,7 @@ pub struct FtpClient {
 impl FtpClient {
     pub fn new(stream: TcpStream) -> Self {
         FtpClient {
-            stream: BufReader::new(Connection::Tcp(stream)),
+            stream: BufStream::new(Connection::Tcp(stream)),
             #[cfg(feature = "ftps")]
             ssl_cfg: None,
             welcome_msg: None,
@@ -61,7 +60,7 @@ impl FtpClient {
     #[cfg(feature = "ftps")]
     pub fn new_tls_client(stream: TlsStream<TcpStream>) -> Self {
         FtpClient {
-            stream: BufReader::new(Connection::Ssl(stream)),
+            stream: BufStream::new(Connection::Ssl(stream)),
             ssl_cfg: None,
             welcome_msg: None,
             _reply_code: 0,
@@ -81,8 +80,7 @@ impl FtpClient {
 
         let mut ftp_client = FtpClient::new(stream);
         ftp_client.read_reply().await?;
-        ftp_client.get_reply_string();
-        ftp_client.check_response(ftp_reply::READY).await?;
+        ftp_client.check_response(ftp_reply::READY)?;
         ftp_client.welcome_msg = Some(ftp_client._reply_string.clone().unwrap());
         Ok(ftp_client)
     }
@@ -118,7 +116,7 @@ impl FtpClient {
         domain: ServerName,
     ) -> Result<FtpClient> {
         self.send_command(Command::AUTH, Some("TLS")).await?;
-        self.check_response(ftp_reply::AUTH_OK).await?;
+        self.check_response(ftp_reply::AUTH_OK)?;
 
         let connector: TlsConnector = std::sync::Arc::new(config.clone()).into();
         let stream = connector
@@ -131,10 +129,10 @@ impl FtpClient {
 
         // Set protection buffer size
         ftps_client.send_command(Command::PBSZ, Some("0")).await?;
-        ftps_client.check_response(ftp_reply::COMMAND_OK).await?;
+        ftps_client.check_response(ftp_reply::COMMAND_OK)?;
 
         ftps_client.send_command(Command::PROT, Some("P")).await?;
-        ftps_client.check_response(ftp_reply::COMMAND_OK).await?;
+        ftps_client.check_response(ftp_reply::COMMAND_OK)?;
         Ok(ftps_client)
     }
 
@@ -194,8 +192,8 @@ impl FtpClient {
             }
             _ => {}
         };
-
         self.write_str(cmd).await?;
+        self.read_reply().await?;
         Ok(Connection::Tcp(stream))
     }
 
@@ -368,7 +366,7 @@ impl FtpClient {
     /// Runs the PASV command.
     async fn pasv(&mut self) -> Result<SocketAddr> {
         self.send_command(Command::PASV, None).await?;
-        self.check_response(ftp_reply::PASSIVE_MODE).await?;
+        self.check_response(ftp_reply::PASSIVE_MODE)?;
         let reply_str = self._reply_string.clone().unwrap();
         let reply_str = reply_str.as_str();
         PORT_RE
@@ -431,11 +429,10 @@ impl FtpClient {
     /// This method is a more complicated way to retrieve a File.
     /// The reader returned should be dropped.
     /// Also you will have to read the response to make sure it has the correct value.
-    pub async fn get(&mut self, file_name: &str) -> Result<BufReader<Connection>> {
+    pub async fn get(&mut self, file_name: &str) -> Result<BufStream<Connection>> {
         let retr_command = format!("RETR {}\r\n", file_name);
-        let data_stream = BufReader::new(self.data_command(&retr_command).await?);
-        self.check_response_in(&[ftp_reply::ABOUT_TO_SEND, ftp_reply::ALREADY_OPEN])
-            .await?;
+        let data_stream = BufStream::new(self.data_command(&retr_command).await?);
+        self.check_response_in(&[ftp_reply::ABOUT_TO_SEND, ftp_reply::ALREADY_OPEN])?;
         Ok(data_stream)
     }
 
@@ -455,7 +452,7 @@ impl FtpClient {
     ///
     /// ```
     /// use ftp_rs::{FtpClient, Connection, FtpError};
-    /// use tokio::io::{AsyncReadExt, BufReader};
+    /// use tokio::io::{AsyncReadExt, BufStream};
     /// use std::io::Cursor;
     /// async {
     ///   let mut conn = FtpClient::connect("172.25.82.139:21").await.unwrap();
@@ -463,7 +460,7 @@ impl FtpClient {
     ///   let mut reader = Cursor::new("hello, world!".as_bytes());
     ///   conn.put("retr.txt", &mut reader).await.unwrap();
     ///
-    ///   async fn lambda(mut reader: BufReader<Connection>) -> Result<Vec<u8>, FtpError> {
+    ///   async fn lambda(mut reader: BufStream<Connection>) -> Result<Vec<u8>, FtpError> {
     ///     let mut buffer = Vec::new();
     ///     reader
     ///         .read_to_end(&mut buffer)
@@ -479,26 +476,14 @@ impl FtpClient {
     /// ```
     pub async fn retr<F, T, P, E>(&mut self, filename: &str, reader: F) -> std::result::Result<T, E>
     where
-        F: Fn(BufReader<Connection>) -> P,
+        F: Fn(BufStream<Connection>) -> P,
         P: std::future::Future<Output = std::result::Result<T, E>>,
         E: From<FtpError>,
     {
         let retr_command = format!("{} {}\r\n", cmd::Command::RETR.cmd_name(), filename);
-
-        let data_stream = BufReader::new(self.data_command(&retr_command).await?);
-        self.read_reply().await?;
-        self.get_reply_string()?;
-        self.check_response_in(&[ftp_reply::ABOUT_TO_SEND, ftp_reply::ALREADY_OPEN])
-            .await?;
-
+        let data_stream = BufStream::new(self.data_command(&retr_command).await?);
+        self.check_response_in(&[ftp_reply::ABOUT_TO_SEND, ftp_reply::ALREADY_OPEN])?;
         let res = reader(data_stream).await?;
-
-        // self.check_response_in(&[
-        //     ftp_reply::CLOSING_DATA_CONNECTION,
-        //     ftp_reply::REQUESTED_FILE_ACTION_OK,
-        // ])
-        // .await?;
-
         Ok(res)
     }
 
@@ -522,7 +507,7 @@ impl FtpClient {
     /// };
     /// ```
     pub async fn simple_retr(&mut self, file_name: &str) -> Result<std::io::Cursor<Vec<u8>>> {
-        async fn do_read(mut reader: BufReader<Connection>) -> Result<Vec<u8>> {
+        async fn do_read(mut reader: BufStream<Connection>) -> Result<Vec<u8>> {
             let mut buffer = Vec::new();
             reader
                 .read_to_end(&mut buffer)
@@ -558,9 +543,8 @@ impl FtpClient {
 
     async fn put_file<R: AsyncRead + Unpin>(&mut self, filename: &str, r: &mut R) -> Result<()> {
         let stor_command = format!("{} {}\r\n", Command::STOR, filename);
-        let mut data_stream = BufReader::new(self.data_command(&stor_command).await?);
-        self.check_response_in(&[ftp_reply::ALREADY_OPEN, ftp_reply::ABOUT_TO_SEND])
-            .await?;
+        let mut data_stream = BufStream::new(self.data_command(&stor_command).await?);
+        self.check_response_in(&[ftp_reply::ALREADY_OPEN, ftp_reply::ABOUT_TO_SEND])?;
         copy(r, &mut data_stream)
             .await
             .map_err(FtpError::ConnectionError)?;
@@ -575,7 +559,6 @@ impl FtpClient {
         }
         self.write_str(ftp_cmd).await?;
         self.read_reply().await?;
-        self.get_reply_string()?;
         Ok(self._reply_code)
     }
 
@@ -617,10 +600,6 @@ impl FtpClient {
             }
             self._reply_lines.push(line.as_str().to_string());
         }
-        Ok(())
-    }
-
-    pub fn get_reply_string(&mut self) -> Result<()> {
         let mut s = String::new();
         for x in self._reply_lines.iter() {
             s.push_str(x.as_str())
@@ -635,8 +614,7 @@ impl FtpClient {
         self.check_response_in(&[
             ftp_reply::CLOSING_DATA_CONNECTION,
             ftp_reply::REQUESTED_FILE_ACTION_OK,
-        ])
-        .await?;
+        ])?;
         Ok(())
     }
 
@@ -647,11 +625,10 @@ impl FtpClient {
         open_code: u32,
         close_code: &[u32],
     ) -> Result<Vec<String>> {
-        let data_stream = BufReader::new(self.data_command(&cmd).await?);
-        self.check_response_in(&[open_code, ftp_reply::ALREADY_OPEN])
-            .await?;
+        let data_stream = BufStream::new(self.data_command(&cmd).await?);
+        self.check_response_in(&[open_code, ftp_reply::ALREADY_OPEN])?;
         let lines = Self::get_lines_from_stream(data_stream).await?;
-        self.check_response_in(close_code).await?;
+        self.check_response_in(close_code)?;
         Ok(lines)
     }
 
@@ -723,7 +700,7 @@ impl FtpClient {
     /// In case the File does not exist `None` is returned.
     pub async fn mdtm(&mut self, pathname: &str) -> Result<Option<DateTime<Utc>>> {
         self.send_command(Command::MDTM, Some(pathname)).await?;
-        self.check_response(ftp_reply::FILE).await?;
+        self.check_response(ftp_reply::FILE)?;
         let reply_str = self._reply_string.clone().unwrap();
         let reply_str = reply_str.as_str();
         match MDTM_RE.captures(reply_str) {
@@ -750,7 +727,7 @@ impl FtpClient {
     /// In case the File does not exist `None` is returned.
     pub async fn size(&mut self, pathname: &str) -> Result<Option<usize>> {
         self.send_command(Command::SIZE, Some(pathname)).await?;
-        self.check_response(ftp_reply::FILE).await?;
+        self.check_response(ftp_reply::FILE)?;
         let reply_str = self._reply_string.clone().unwrap();
         let reply_str = reply_str.as_str();
         match SIZE_RE.captures(reply_str) {
@@ -821,12 +798,12 @@ impl FtpClient {
             .map_err(FtpError::ConnectionError)
     }
 
-    pub async fn check_response(&mut self, expected_code: u32) -> Result<()> {
-        self.check_response_in(&[expected_code]).await
+    pub fn check_response(&mut self, expected_code: u32) -> Result<()> {
+        self.check_response_in(&[expected_code])
     }
 
     /// Retrieve single line response
-    pub async fn check_response_in(&mut self, expected_code: &[u32]) -> Result<()> {
+    pub fn check_response_in(&mut self, expected_code: &[u32]) -> Result<()> {
         let reply_string = self._reply_string.clone();
         if expected_code.iter().any(|ec| self._reply_code == *ec) {
             Ok(())
