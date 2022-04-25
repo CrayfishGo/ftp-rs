@@ -604,7 +604,7 @@ impl FtpClient {
         for x in self._reply_lines.iter() {
             s.push_str(x.as_str())
         }
-        self._reply_string = Some(s.as_str().to_string());
+        self._reply_string = Some(s);
         Ok(())
     }
 
