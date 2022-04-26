@@ -14,6 +14,7 @@ pub enum FtpError {
     ConnectionError(::std::io::Error),
     SecureError(String),
     InvalidResponse(String),
+    InvalidArgument(String),
     InvalidAddress(::std::net::AddrParseError),
 }
 
@@ -74,6 +75,9 @@ impl fmt::Display for FtpError {
             FtpError::InvalidResponse(ref desc) => {
                 write!(f, "FTP InvalidResponse: {}", desc.clone())
             }
+            FtpError::InvalidArgument(ref desc) => {
+                write!(f, "FTP InvalidArgument: {}", desc.clone())
+            }
             FtpError::InvalidAddress(ref perr) => write!(f, "FTP InvalidAddress: {}", perr),
         }
     }
@@ -85,6 +89,7 @@ impl Error for FtpError {
             FtpError::ConnectionError(ref ioerr) => Some(ioerr),
             FtpError::SecureError(_) => None,
             FtpError::InvalidResponse(_) => None,
+            FtpError::InvalidArgument(_) => None,
             FtpError::InvalidAddress(ref perr) => Some(perr),
         }
     }

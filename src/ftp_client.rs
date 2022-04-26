@@ -30,6 +30,7 @@ lazy_static::lazy_static! {
 
     // This regex extracts File size from SIZE command response.
     static ref SIZE_RE: Regex = Regex::new(r"\s+(\d+)\s*$").unwrap();
+    static ref PROT_COMMAND_VALUE: Vec<&'static str> = {vec!["C","E","S","P"]};
 }
 
 pub struct FtpClient {
@@ -115,8 +116,7 @@ impl FtpClient {
         config: ClientConfig,
         domain: ServerName,
     ) -> Result<FtpClient> {
-        self.send_command(Command::AUTH, Some("TLS")).await?;
-        self.check_response(ftp_reply::AUTH_OK)?;
+        self.exe_auth_tls().await?;
 
         let connector: TlsConnector = std::sync::Arc::new(config.clone()).into();
         let stream = connector
@@ -134,6 +134,91 @@ impl FtpClient {
         ftps_client.send_command(Command::PROT, Some("P")).await?;
         ftps_client.check_response(ftp_reply::COMMAND_OK)?;
         Ok(ftps_client)
+    }
+
+    #[cfg(feature = "ftps")]
+    async fn exe_auth_tls(mut self) -> Result<()> {
+        self.send_command(Command::AUTH, Some("TLS")).await?;
+        self.check_response_in(&[ftp_reply::AUTH_OK, ftp_reply::SECURITY_MECHANISM_IS_OK])
+    }
+
+    #[cfg(feature = "ftps")]
+    /// Send the AUTH command with the specified mechanism.
+    pub async fn exe_auth(mut self, mechanism: &str) -> Result<u32> {
+        Ok(self.send_command(Command::AUTH, Some(mechanism)).await?)
+    }
+
+    #[cfg(feature = "ftps")]
+    /// PBSZ command. pbsz value: 0 to (2^32)-1 decimal integer.
+    /// * pbsz: Protection Buffer Size
+    pub async fn exec_pbsz(mut self, pbsz: u64) -> Result<()> {
+        if pbsz < 0 || 4294967295 < pbsz {
+            Err(FtpError::InvalidArgument(format!(
+                "Invalid pbsz value. The correct value should be: {} to {}",
+                0, "(2^32)-1"
+            )))
+        }
+        self.send_command(Command::PBSZ, Some(pbsz.to_string().as_str()))
+            .await?;
+        self.check_response_in(&[ftp_reply::COMMAND_OK])?;
+        Ok(())
+    }
+
+    #[cfg(feature = "ftps")]
+    /// Send the ADAT command with the specified authentication data.
+    pub async fn exec_adat(mut self, data: Option<&[u8]>) -> Result<u32> {
+        let mut args = None;
+        if data.is_some() {
+            args = Some(base64::encode(data).as_str());
+        }
+        Ok(self.send_command(Command::ADAT, args).await?)
+    }
+
+    #[cfg(feature = "ftps")]
+    /// Send the CONF command with the specified authentication data.
+    pub async fn exec_conf(mut self, data: Option<&[u8]>) -> Result<u32> {
+        let mut args = None;
+        if data.is_some() {
+            args = Some(base64::encode(data).as_str());
+        }
+        Ok(self.send_command(Command::CONF, args).await?)
+    }
+
+    #[cfg(feature = "ftps")]
+    /// Send the ENC command with the specified authentication data.
+    pub async fn exec_enc(mut self, data: Option<&[u8]>) -> Result<u32> {
+        let mut args = None;
+        if data.is_some() {
+            args = Some(base64::encode(data).as_str());
+        }
+        Ok(self.send_command(Command::ENC, args).await?)
+    }
+
+    #[cfg(feature = "ftps")]
+    /// Send the MIC command with the specified authentication data.
+    pub async fn exec_mic(mut self, data: Option<&[u8]>) -> Result<u32> {
+        let mut args = None;
+        if data.is_some() {
+            args = Some(base64::encode(data).as_str());
+        }
+        Ok(self.send_command(Command::MIC, args).await?)
+    }
+
+    #[cfg(feature = "ftps")]
+    /// Send the MIC command with the specified authentication data.
+    pub async fn exec_prot(mut self, prot: &mut str) -> Result<()> {
+        let mut p = prot.as_mut();
+        if p.is_empty() {
+            p = &mut "C";
+        }
+        if !PROT_COMMAND_VALUE.contains(p) {
+            Err(FtpError::InvalidArgument(format!(
+                "Unsupported prot command value",
+            )))
+        }
+        self.send_command(Command::PROT, Some(p)).await?;
+        self.check_response_in(&[ftp_reply::COMMAND_OK])?;
+        Ok(())
     }
 
     /// Switch to insecure mode. If the connection is already

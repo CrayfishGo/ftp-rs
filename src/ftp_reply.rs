@@ -30,6 +30,7 @@ pub const PATH_CREATED: u32 = 257;
 // 3xx: Positive intermediate Reply
 pub const NEED_PASSWORD: u32 = 331;
 pub const LOGIN_NEED_ACCOUNT: u32 = 332;
+pub const SECURITY_MECHANISM_IS_OK: u32 = 334;
 pub const REQUEST_FILE_PENDING: u32 = 350;
 
 // 4xx: Transient Negative Completion Reply

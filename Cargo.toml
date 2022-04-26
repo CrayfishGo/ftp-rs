@@ -1,6 +1,6 @@
 [package]
 name = "ftp-rs"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["crayfishgo"]
 documentation = "https://docs.rs/ftp-rs/"
 repository = "https://github.com/CrayfishGo/ftp-rs"
@@ -19,6 +19,7 @@ ftps = ["tokio-rustls"]
 lazy_static = "1.4.0"
 regex = "1.5.5"
 chrono = "0.4"
+base64 = "0.13.0"
 
 tokio = { version = "1.17.0", features = ["net", "io-util"] }
 tokio-rustls = { version = "0.23.3", optional = true }
