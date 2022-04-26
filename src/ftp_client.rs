@@ -2,23 +2,23 @@
 use std::borrow::{Borrow, Cow};
 use std::collections::{HashMap, HashSet};
 use std::fmt::format;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::string::String;
 
-use chrono::{DateTime, Utc};
 use chrono::offset::TimeZone;
+use chrono::{DateTime, Utc};
 use regex::Regex;
 use tokio::io::{
-    AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufStream, copy,
+    copy, AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufStream,
 };
 use tokio::net::{TcpStream, ToSocketAddrs};
 #[cfg(feature = "ftps")]
 use tokio_rustls::{client::TlsStream, rustls::ClientConfig, rustls::ServerName, TlsConnector};
 
-use crate::{cmd, ftp_reply, MODES, REPLY_CODE_LEN, StringExt};
 use crate::cmd::Command;
 use crate::connection::Connection;
 use crate::types::{FileType, FtpError, Result};
+use crate::{cmd, ftp_reply, StringExt, MODES, REPLY_CODE_LEN};
 
 lazy_static::lazy_static! {
     // This regex extracts IP and Port details from PASV command response.
@@ -44,7 +44,7 @@ pub struct FtpClient {
 }
 
 impl FtpClient {
-    pub fn new(stream: TcpStream) -> Self {
+    fn new(stream: TcpStream) -> Self {
         FtpClient {
             stream: BufStream::new(Connection::Tcp(stream)),
             #[cfg(feature = "ftps")]
@@ -58,7 +58,7 @@ impl FtpClient {
     }
 
     #[cfg(feature = "ftps")]
-    pub fn new_tls_client(stream: TlsStream<TcpStream>) -> Self {
+    fn new_tls_client(stream: TlsStream<TcpStream>) -> Self {
         FtpClient {
             stream: BufStream::new(Connection::Ssl(stream)),
             ssl_cfg: None,
@@ -360,6 +360,54 @@ impl FtpClient {
         );
         Ok(self
             .send_command(Command::ALLO, Some(args.as_str()))
+            .await?)
+    }
+
+    /// A convenience method to send the FTP PORT command to the server, receive the reply, and return the reply code.
+    pub async fn port(&mut self, host: IpAddr, port: u16) -> Result<u32> {
+        let mut args = String::with_capacity(24);
+        args.push_str(host.to_string().replace('.', ",").as_str());
+        args.push_str(",");
+        args.push_str((port >> 8).to_string().as_str());
+        args.push_str(",");
+        args.push_str((port & 0xff).to_string().as_str());
+        Ok(self
+            .send_command(Command::PORT, Some(args.as_str()))
+            .await?)
+    }
+
+    /// A convenience method to send the FTP EPRT command to the server, receive the reply, and return the reply code.
+    /// * EPRT |1|132.235.1.2|6275|
+    /// * EPRT |2|1080::8:800:200C:417A|5282|
+    pub async fn eprt(&mut self, host: IpAddr, port: u16) -> Result<u32> {
+        let mut args = String::new();
+        let mut h = host.to_string();
+        let n = h.find("%").unwrap_or(0);
+        if n > 0 {
+            h = h.substring(0, n).to_string();
+        }
+        args.push_str("|");
+        match host {
+            IpAddr::V4(addr) => args.push_str("1"),
+            IpAddr::V6(addr) => args.push_str("2"),
+        }
+        args.push_str("|");
+        args.push_str(h.as_str());
+        args.push_str("|");
+        args.push_str(port.to_string().as_str());
+        args.push_str("|");
+        Ok(self
+            .send_command(Command::EPRT, Some(args.as_str()))
+            .await?)
+    }
+
+    /// A convenience method to send the FTP MFMT command to the server, receive the reply, and return the reply code.
+    pub async fn mfmt(&mut self, pathname: &str, timeval: &str) -> Result<u32> {
+        Ok(self
+            .send_command(
+                Command::MFMT,
+                Some(format!("{} {}", timeval, pathname).as_str()),
+            )
             .await?)
     }
 

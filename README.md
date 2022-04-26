@@ -8,7 +8,7 @@ The full supported FTP client for Rust
 FTPS support is disabled by default. To enable it `ftps` should be activated in `Cargo.toml`.
 ```toml
 [dependencies]
-ftp = { version = "<version>", features = ["ftps"] }
+ftp-rs = { version = "<version>", features = ["ftps"] }
 ```
 
 ## Usage
