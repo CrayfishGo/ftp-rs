@@ -211,7 +211,7 @@ impl FtpClient {
         if p.is_empty() {
             p = &mut "C";
         }
-        if !PROT_COMMAND_VALUE.contains(p) {
+        if !PROT_COMMAND_VALUE.contains(&&*p) {
             Err(FtpError::InvalidArgument(format!(
                 "Unsupported prot command value",
             )))
