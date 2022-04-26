@@ -7,7 +7,7 @@
 //! ```rust,no_run
 //! use ftp_rs::FtpClient;
 //! async {
-//!   let mut ftp_client = FtpClient::connect("172.25.82.139:21").await.unwrap_or_else(|err|
+//!   let mut ftp_client = FtpClient::connect("192.168.32.204:21").await.unwrap_or_else(|err|
 //!       panic!("{}", err)
 //!   );
 //!   let _ = ftp_client.quit();
@@ -34,7 +34,7 @@
 //! use tokio_rustls::rustls::{ClientConfig, RootCertStore, ServerName};
 //!
 //! async {
-//!   let ftp_client = FtpClient::connect("172.25.82.139:21").await.unwrap();
+//!   let ftp_client = FtpClient::connect("192.168.32.204:21").await.unwrap();
 //!   
 //!   let mut root_store = RootCertStore::empty();
 //!   // root_store.add_pem_file(...);

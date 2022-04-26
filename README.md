@@ -19,7 +19,7 @@ use ftp_rs::FtpClient;
 
 async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a connection to an FTP server and authenticate to it.
-    let mut ftp_client = FtpClient::connect("172.25.82.139:21").await?;
+    let mut ftp_client = FtpClient::connect("192.168.32.204:21").await?;
     let _ = ftp_client.login("username", "password").await?;
 
     // Get the current Directory that the client will be reading from and writing to.
@@ -33,7 +33,7 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Read File with contents\n{}\n", str::from_utf8(&remote_file.into_inner()).await?);
 
     // Store (PUT) a File from the client to the current working Directory of the server.
-    let mut reader = Cursor::new("Hello from the Rust \"ftp\" crate!".as_bytes());
+    let mut reader = Cursor::new("Hello from the Rust \"ftp-rs\" crate!".as_bytes());
     let _ = ftp_client.put("greeting.txt", &mut reader).await?;
     println!("Successfully wrote greeting.txt");
 

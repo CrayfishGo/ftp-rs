@@ -105,7 +105,7 @@ impl FtpClient {
     /// let conf = ClientConfig::builder().with_safe_defaults().with_root_certificates(root_store).with_no_client_auth();
     /// let domain = ServerName::try_from("www.cert-domain.com").expect("invalid DNS name");
     /// async {
-    ///   let mut ftp_client = FtpClient::connect("172.25.82.139:21").await.unwrap();
+    ///   let mut ftp_client = FtpClient::connect("192.168.32.204:21").await.unwrap();
     ///   let mut ftp_client = ftp_client.into_secure(conf, domain).await.unwrap();
     /// };
     /// ```
@@ -152,7 +152,7 @@ impl FtpClient {
     /// let conf = ClientConfig::builder().with_safe_defaults().with_root_certificates(root_store).with_no_client_auth();
     /// let domain = ServerName::try_from("www.cert-domain.com").expect("invalid DNS name");
     /// async {
-    ///   let mut ftp_client = FtpClient::connect("172.25.82.139:21").await.unwrap();
+    ///   let mut ftp_client = FtpClient::connect("192.168.32.204:21").await.unwrap();
     ///   let mut ftp_client = ftp_client.into_secure(conf, domain).await.unwrap();
     ///   // Switch back to the insecure mode
     ///   let mut ftp_client = ftp_client.into_insecure().await.unwrap();
@@ -206,7 +206,7 @@ impl FtpClient {
     /// use ftp_rs::FtpClient;
     ///
     /// async {
-    ///   let client = FtpClient::connect("172.25.82.139:21").await
+    ///   let client = FtpClient::connect("192.168.32.204:21").await
     ///                          .expect("Couldn't connect to the server...");
     ///   let s: &TcpStream = client.get_ref();
     /// };
@@ -503,7 +503,7 @@ impl FtpClient {
     /// use tokio::io::{AsyncReadExt, BufStream};
     /// use std::io::Cursor;
     /// async {
-    ///   let mut conn = FtpClient::connect("172.25.82.139:21").await.unwrap();
+    ///   let mut conn = FtpClient::connect("192.168.32.204:21").await.unwrap();
     ///   conn.login("Doe", "mumble").await.unwrap();
     ///   let mut reader = Cursor::new("hello, world!".as_bytes());
     ///   conn.put("retr.txt", &mut reader).await.unwrap();
@@ -541,7 +541,7 @@ impl FtpClient {
     /// use ftp_rs::{FtpClient, FtpError};
     /// use std::io::Cursor;
     /// async {
-    ///     let mut conn = FtpClient::connect("172.25.82.139:21").await?;
+    ///     let mut conn = FtpClient::connect("192.168.32.204:21").await?;
     ///     conn.login("Doe", "mumble").await?;
     ///     let mut reader = Cursor::new("hello, world!".as_bytes());
     ///     conn.put("simple_retr.txt", &mut reader).await?;
